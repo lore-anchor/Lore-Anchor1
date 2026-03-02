@@ -15,6 +15,7 @@ import os
 from typing import Any
 
 import stripe
+from stripe import StripeError, error as stripe_error
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
@@ -89,6 +90,11 @@ async def create_checkout_session(
         )
     
     user_id = user.get("id") or user.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found"
+        )
     user_email = user.get("email", "")
     
     # Use provided price ID or default to Pro monthly
@@ -115,7 +121,7 @@ async def create_checkout_session(
             # Create new Stripe customer
             customer = stripe.Customer.create(
                 email=user_email,
-                metadata={"supabase_user_id": user_id},
+                metadata={"supabase_user_id": str(user_id)},
             )
             stripe_customer_id = customer.id
             
@@ -139,14 +145,19 @@ async def create_checkout_session(
             success_url=success_url,
             cancel_url=cancel_url,
             subscription_data={
-                "metadata": {"supabase_user_id": user_id},
+                "metadata": {"supabase_user_id": str(user_id)},
             },
-            metadata={"supabase_user_id": user_id},
+            metadata={"supabase_user_id": str(user_id)},
         )
         
+        if not session.url:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create checkout URL"
+            )
         return CheckoutResponse(session_id=session.id, url=session.url)
         
-    except stripe.error.StripeError as exc:
+    except StripeError as exc:
         logger.error(f"Stripe error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -193,7 +204,7 @@ async def create_portal_session(
         
         return {"url": session.url}
         
-    except stripe.error.StripeError as exc:
+    except StripeError as exc:
         logger.error(f"Stripe error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -297,7 +308,7 @@ async def stripe_webhook(
     except ValueError:
         logger.error("Invalid payload")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
+    except stripe_error.SignatureVerificationError:
         logger.error("Invalid signature")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
     

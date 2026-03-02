@@ -19,7 +19,7 @@ from stripe import StripeError
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
-from apps.api.core.auth import get_current_user
+from apps.api.core.security import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def get_supabase_client():
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout_session(
     request: CheckoutRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> CheckoutResponse:
     """
     Create a Stripe Checkout session for subscription.
@@ -89,13 +89,7 @@ async def create_checkout_session(
             detail="Stripe not configured"
         )
     
-    user_id = user.get("id") or user.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found"
-        )
-    user_email = user.get("email", "")
+    user_email = ""
     
     # Use provided price ID or default to Pro monthly
     price_id = request.price_id or STRIPE_PRICE_ID_PRO
@@ -167,7 +161,7 @@ async def create_checkout_session(
 
 @router.post("/portal")
 async def create_portal_session(
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> dict[str, str]:
     """
     Create a Stripe Customer Portal session.
@@ -179,8 +173,6 @@ async def create_portal_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe not configured"
         )
-    
-    user_id = user.get("id") or user.get("sub")
     
     try:
         supabase = get_supabase_client()
@@ -214,14 +206,13 @@ async def create_portal_session(
 
 @router.get("/status", response_model=SubscriptionStatusResponse)
 async def get_subscription_status(
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> SubscriptionStatusResponse:
     """
     Get current user's subscription status.
     
     Returns tier (free/pro), status, and usage stats.
     """
-    user_id = user.get("id") or user.get("sub")
     
     try:
         supabase = get_supabase_client()

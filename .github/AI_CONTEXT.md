@@ -98,6 +98,22 @@ If you are an AI agent continuing this work:
 ## Context History
 
 <!-- Auto-appended by .github/workflows/save-context.yml -->
+### 2026-03-02 10:06 JST
+- Trigger: `issues`
+- Latest commit: `cb98a3f merge: PR #42 — billing, SaladCloud, landing page, CPU worker fix`
+- No open ai-code issues
+```
+cb98a3f merge: PR #42 — billing, SaladCloud, landing page, CPU worker fix
+cbcb3f3 fix(ci): remove unused Path import in cpu-worker
+1d8b1a6 merge: resolve conflicts between claude/fix-issue-8CmuF and claude/interesting-roentgen
+435d640 chore: update AI context snapshot [skip ci]
+c5190df merge: resolve conflicts between main and claude/interesting-roentgen
+d734f38 fix: resolve mypy no-any-return errors in salad.py and database.py
+34f06eb feat: address all open issues (#31-#38) — unified LP, CPU worker, Stripe, scale-to-zero, growth engine
+3d54657 chore: update AI context snapshot [skip ci]
+c23756d chore: update AI context snapshot [skip ci]
+794843f chore: update AI context snapshot [skip ci]
+```
 ### 2026-03-02 00:14 JST
 - Trigger: `schedule`
 - Latest commit: `3d54657 chore: update AI context snapshot [skip ci]`

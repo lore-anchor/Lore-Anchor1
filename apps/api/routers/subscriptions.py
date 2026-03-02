@@ -16,7 +16,6 @@ from typing import Any
 
 import stripe
 from stripe import StripeError
-from stripe import error as stripe_error_module
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
@@ -309,7 +308,7 @@ async def stripe_webhook(
     except ValueError:
         logger.error("Invalid payload")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload")
-    except stripe_error_module.SignatureVerificationError:
+    except stripe.error.SignatureVerificationError:  # type: ignore[attr-defined]
         logger.error("Invalid signature")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
     

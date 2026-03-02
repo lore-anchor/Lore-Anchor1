@@ -342,6 +342,46 @@ except ImportError:
     log.warning("canva_bridge not found — Canva endpoints disabled")
 
 
+# ── Figma Webhook Endpoint (for Make.com integration) ─────────────────────────
+class FigmaWebhookRequest(BaseModel):
+    figma_url: str
+    component_name: str = "GeneratedComponent"
+    use_vision: bool = False
+
+
+@app.post("/figma/generate")
+async def figma_generate(req: FigmaWebhookRequest):
+    """Generate React component from Figma URL. Called by Make.com."""
+    try:
+        # Import here to avoid startup dependency
+        from figma_bridge import FigmaBridge
+
+        token = os.environ.get("FIGMA_TOKEN", "")
+        if not token:
+            raise HTTPException(status_code=400, detail="FIGMA_TOKEN not configured")
+
+        bridge = FigmaBridge(figma_token=token)
+        result = await bridge.generate_component(
+            req.figma_url,
+            req.component_name,
+            use_vision=req.use_vision,
+        )
+        return result
+    except Exception as e:
+        log.error(f"Figma generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/figma/health")
+async def figma_health():
+    """Check if Figma integration is configured."""
+    token = os.environ.get("FIGMA_TOKEN", "")
+    return {
+        "configured": bool(token),
+        "token_prefix": token[:8] + "..." if token else None,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8888)

@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+
 
 import stripe
+from stripe import StripeError
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
-from apps.api.core.auth import get_current_user
+from apps.api.core.security import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def get_supabase_client():
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout_session(
     request: CheckoutRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> CheckoutResponse:
     """
     Create a Stripe Checkout session for subscription.
@@ -88,8 +89,7 @@ async def create_checkout_session(
             detail="Stripe not configured"
         )
     
-    user_id = user.get("id") or user.get("sub")
-    user_email = user.get("email", "")
+    user_email = ""
     
     # Use provided price ID or default to Pro monthly
     price_id = request.price_id or STRIPE_PRICE_ID_PRO
@@ -115,7 +115,7 @@ async def create_checkout_session(
             # Create new Stripe customer
             customer = stripe.Customer.create(
                 email=user_email,
-                metadata={"supabase_user_id": user_id},
+                metadata={"supabase_user_id": str(user_id)},
             )
             stripe_customer_id = customer.id
             
@@ -139,14 +139,19 @@ async def create_checkout_session(
             success_url=success_url,
             cancel_url=cancel_url,
             subscription_data={
-                "metadata": {"supabase_user_id": user_id},
+                "metadata": {"supabase_user_id": str(user_id)},
             },
-            metadata={"supabase_user_id": user_id},
+            metadata={"supabase_user_id": str(user_id)},
         )
         
+        if not session.url:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create checkout URL"
+            )
         return CheckoutResponse(session_id=session.id, url=session.url)
         
-    except stripe.error.StripeError as exc:
+    except StripeError as exc:
         logger.error(f"Stripe error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -156,7 +161,7 @@ async def create_checkout_session(
 
 @router.post("/portal")
 async def create_portal_session(
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> dict[str, str]:
     """
     Create a Stripe Customer Portal session.
@@ -168,8 +173,6 @@ async def create_portal_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe not configured"
         )
-    
-    user_id = user.get("id") or user.get("sub")
     
     try:
         supabase = get_supabase_client()
@@ -193,7 +196,7 @@ async def create_portal_session(
         
         return {"url": session.url}
         
-    except stripe.error.StripeError as exc:
+    except StripeError as exc:
         logger.error(f"Stripe error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -203,14 +206,13 @@ async def create_portal_session(
 
 @router.get("/status", response_model=SubscriptionStatusResponse)
 async def get_subscription_status(
-    user: dict[str, Any] = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ) -> SubscriptionStatusResponse:
     """
     Get current user's subscription status.
     
     Returns tier (free/pro), status, and usage stats.
     """
-    user_id = user.get("id") or user.get("sub")
     
     try:
         supabase = get_supabase_client()
@@ -297,7 +299,7 @@ async def stripe_webhook(
     except ValueError:
         logger.error("Invalid payload")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
+    except stripe.error.SignatureVerificationError:  # type: ignore[attr-defined]
         logger.error("Invalid signature")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
     

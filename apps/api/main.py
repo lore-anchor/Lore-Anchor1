@@ -85,6 +85,20 @@ app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(billing.router, prefix="/api/v1")
 app.include_router(subscriptions.router, prefix="/api/v1")
 
+# ------------------------------------------------------------------
+# Health check endpoint
+# ------------------------------------------------------------------
+
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint for load balancers and monitoring."""
+    return {"status": "ok", "version": "0.1.0"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)r, prefix="/api/v1")
+
 
 # ------------------------------------------------------------------
 # Health check
